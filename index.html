@@ -201,6 +201,72 @@
       border: 2px solid #2ee8e8;
     }
 
+    /* Default avatar (man / woman) picker */
+    .avatar-picker-wrap {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid rgba(255,255,255,0.12);
+    }
+    .avatar-picker-wrap > .sub-label {
+      display: block;
+      color: #b2ffff;
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin-bottom: 10px;
+      text-align: center;
+    }
+    .avatar-picker {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .avatar-picker button {
+      flex: 1;
+      min-width: 120px;
+      max-width: 200px;
+      padding: 12px 10px 14px;
+      border-radius: 14px;
+      border: 2px solid rgba(255,255,255,0.22);
+      background: rgba(255,255,255,0.06);
+      cursor: pointer;
+      font-family: 'Cairo', sans-serif;
+      transition: border-color 0.25s, background 0.25s, box-shadow 0.25s;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+    .avatar-picker button img {
+      width: 64px;
+      height: 64px;
+      border-radius: 12px;
+      object-fit: cover;
+      border: 2px solid rgba(255,255,255,0.2);
+    }
+    .avatar-picker button span {
+      color: rgba(255,255,255,0.85);
+      font-size: 0.88rem;
+      font-weight: 700;
+    }
+    .avatar-picker button:hover {
+      border-color: rgba(46,232,232,0.5);
+      background: rgba(46,232,232,0.08);
+    }
+    .avatar-picker button.active {
+      border-color: #2ee8e8;
+      background: rgba(46,232,232,0.14);
+      box-shadow: 0 0 0 1px rgba(46,232,232,0.35);
+    }
+    .avatar-picker button.active span { color: #fff; }
+    .avatar-picker-hint {
+      text-align: center;
+      font-size: 0.78rem;
+      color: rgba(255,255,255,0.45);
+      margin-top: 10px;
+      line-height: 1.4;
+    }
+
     /* Orientation toggle */
     .orientation-toggle {
       display: flex;
@@ -277,7 +343,8 @@
     }
     #card-h img.card-bg {
       width: 100%; height: 100%;
-      object-fit: cover;
+      /* fill يطابق مساحة الـ canvas حرفياً ولا يقصّ الصورة كخلفية */
+      object-fit: fill;
       display: block;
       border-radius: 16px;
     }
@@ -293,7 +360,7 @@
     }
     #card-v img.card-bg {
       width: 100%; height: 100%;
-      object-fit: cover;
+      object-fit: fill;
       display: block;
       border-radius: 16px;
     }
@@ -356,6 +423,20 @@
           <p>اضغط لرفع صورتك الشخصية</p>
           <input type="file" id="photo-input" accept="image/*" onchange="loadPhoto(event)" />
         </div>
+        <div class="avatar-picker-wrap">
+          <span class="sub-label">أو اختر صورة افتراضية للبطاقة</span>
+          <div class="avatar-picker" role="group" aria-label="صورة افتراضية">
+            <button type="button" id="avatar-btn-man" class="active" onclick="setAvatarPlaceholder('man')">
+              <img src="cards/man.png" alt="" width="64" height="64" />
+              <span>مهيمن</span>
+            </button>
+            <button type="button" id="avatar-btn-woman" onclick="setAvatarPlaceholder('woman')">
+              <img src="cards/womon.png" alt="" width="64" height="64" />
+              <span>مهيمنة</span>
+            </button>
+          </div>
+          <p class="avatar-picker-hint">تُعرض في مكان الصورة على البطاقة إذا لم ترفع صورة؛ وعند رفع صورتك تُستخدم صورتك بدلها.</p>
+        </div>
       </div>
 
       <!-- Name -->
@@ -411,7 +492,8 @@
         name:  { x:270, y:270, maxW:380 },
         dept:  { x:270, y:390, maxW:380 },
         rank:  { x:355, y:525, maxW:220 },
-        photo: { x:748, y:109, w:268, h:278 },
+        /* فتحة الصورة من card-h.png: 749–1019 × 110–336 (271×227) */
+        photo: { x:749, y:110, w:271, h:227, r:14, fit: 'coverTop', nudgeY: 144 },
         fs: 28
       },
       v: {
@@ -419,23 +501,77 @@
         name:  { x:320, y:475, maxW:480 },
         dept:  { x:320, y:720, maxW:480 },
         rank:  { x:380, y:938, maxW:320 },
-        photo: { x:776, y:312, w:432, h:292, r:22 },
+        /* محاذاة مع مربع الصورة في card-v.png (يغطي كامل المنطقة السوداء) */
+        photo: { x:782, y:326, w:412, h:516, r:36 },
         fs: 36
       }
     };
 
     let orientation = 'h';
     let photoImg    = null;
+    /** 'man' | 'woman' — يُستخدم عند عدم رفع صورة شخصية */
+    let avatarPlaceholder = 'man';
+    let avatarManImg = null;
+    let avatarWomanImg = null;
 
-    /** Scale & center image like CSS object-fit: cover inside dx,dy,dw,dh */
-    function drawImageCover(ctx, img, dx, dy, dw, dh) {
+    function setAvatarPlaceholder(which) {
+      avatarPlaceholder = which;
+      document.getElementById('avatar-btn-man').classList.toggle('active', which === 'man');
+      document.getElementById('avatar-btn-woman').classList.toggle('active', which === 'woman');
+      updateCard();
+    }
+
+    function getPlaceholderImg() {
+      if (avatarPlaceholder === 'woman') return avatarWomanImg;
+      return avatarManImg;
+    }
+
+    function isUserPhotoActive() {
+      return !!(photoImg && photoImg.complete && photoImg.naturalWidth);
+    }
+
+    /** صورة للرسم: رفع المستخدم أو الافتراضية */
+    function getPhotoLayerImage() {
+      if (photoImg && photoImg.complete && photoImg.naturalWidth) return photoImg;
+      const ph = getPlaceholderImg();
+      if (ph && ph.complete && ph.naturalWidth) return ph;
+      return null;
+    }
+
+    /**
+     * مثل object-fit: cover داخل dx,dy,dw,dh
+     * alignY: 'center' | 'top' | 'bottom' — للأفقي نستخدم top لإظهار الوجه وعدم قصّ نصف الصورة من الأعلى
+     */
+    function drawImageCover(ctx, img, dx, dy, dw, dh, alignY, nudgeY) {
       const sw = img.naturalWidth, sh = img.naturalHeight;
       if (!sw || !sh) return;
       const scale = Math.max(dw / sw, dh / sh);
       const bw = sw * scale, bh = sh * scale;
-      const ox = dx + (dw - bw) / 2, oy = dy + (dh - bh) / 2;
-      /* +1px bleed avoids subpixel gaps inside rounded clip (esp. wide “panorama” photos) */
+      const ox = dx + (dw - bw) / 2;
+      let oy = dy + (dh - bh) / 2;
+      if (alignY === 'top') oy = dy;
+      else if (alignY === 'bottom') oy = dy + dh - bh;
+      if (nudgeY) oy += nudgeY;
+      /* +1px bleed يقلل فراغات تحت القص */
       ctx.drawImage(img, 0, 0, sw, sh, ox - 0.5, oy - 0.5, bw + 1, bh + 1);
+    }
+
+    function drawPhotoInSlot(ctx, p) {
+      const layerImg = getPhotoLayerImage();
+      if (!layerImg) return;
+      ctx.save();
+      ctx.beginPath();
+      const pr = p.photo.r != null ? p.photo.r : 8;
+      if (ctx.roundRect) ctx.roundRect(p.photo.x, p.photo.y, p.photo.w, p.photo.h, pr);
+      else               ctx.rect(p.photo.x, p.photo.y, p.photo.w, p.photo.h);
+      ctx.clip();
+      let ay = p.photo.fit === 'coverTop' ? 'top' : 'center';
+      /* أفقي + مهيمن/مهيمنة: محاذاة من الأسفل لرفع ظهور الجزء السفلي من الرسم داخل الإطار */
+      const isHorizontal = p.cw === 1063 && p.ch === 650;
+      if (isHorizontal && !isUserPhotoActive()) ay = 'bottom';
+      const nudgeY = p.photo.nudgeY != null ? p.photo.nudgeY : 0;
+      drawImageCover(ctx, layerImg, p.photo.x, p.photo.y, p.photo.w, p.photo.h, ay, nudgeY);
+      ctx.restore();
     }
 
     function getSelectedDeptsList() {
@@ -511,17 +647,8 @@
       const ctx = cvs.getContext('2d');
       ctx.clearRect(0, 0, p.cw, p.ch);
 
-      // Photo
-      if (photoImg) {
-        ctx.save();
-        ctx.beginPath();
-        const pr = p.photo.r != null ? p.photo.r : 8;
-        if (ctx.roundRect) ctx.roundRect(p.photo.x, p.photo.y, p.photo.w, p.photo.h, pr);
-        else               ctx.rect(p.photo.x, p.photo.y, p.photo.w, p.photo.h);
-        ctx.clip();
-        drawImageCover(ctx, photoImg, p.photo.x, p.photo.y, p.photo.w, p.photo.h);
-        ctx.restore();
-      }
+      // Photo (رفع المستخدم أو الصورة الافتراضية مهيمن/مهيمنة)
+      drawPhotoInSlot(ctx, p);
 
       // Text
       const name = document.getElementById('inp-name').value.trim();
@@ -575,16 +702,7 @@
 
       const finish = () => {
         ctx.drawImage(bg, 0, 0, p.cw, p.ch);
-        if (photoImg) {
-          ctx.save();
-          ctx.beginPath();
-          const pr = p.photo.r != null ? p.photo.r : 8;
-          if (ctx.roundRect) ctx.roundRect(p.photo.x, p.photo.y, p.photo.w, p.photo.h, pr);
-          else               ctx.rect(p.photo.x, p.photo.y, p.photo.w, p.photo.h);
-          ctx.clip();
-          drawImageCover(ctx, photoImg, p.photo.x, p.photo.y, p.photo.w, p.photo.h);
-          ctx.restore();
-        }
+        drawPhotoInSlot(ctx, p);
         const name = document.getElementById('inp-name').value.trim();
         const dept = getSelectedDepts();
         const rank = document.getElementById('inp-rank').value;
@@ -607,6 +725,14 @@
       if (bg.complete && bg.naturalWidth > 0) finish();
       else { bg.crossOrigin='anonymous'; bg.onload = finish; }
     }
+
+    // تحميل الصور الافتراضية للبطاقة
+    avatarManImg = new Image();
+    avatarWomanImg = new Image();
+    avatarManImg.onload = () => render();
+    avatarWomanImg.onload = () => render();
+    avatarManImg.src = 'cards/man.png';
+    avatarWomanImg.src = 'cards/womon.png';
 
     // Init
     setOrientation('h');
